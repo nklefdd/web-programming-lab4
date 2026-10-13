@@ -1,115 +1,132 @@
-# web-programming-2026-template
+# Jewelry Store — онлайн-крамниця ювелірних прикрас
 
-A reusable Django project with no bundled application, SQLite, and Django's
-standard admin, authentication, sessions, messages, and staticfiles support.
+## Про що цей сайт
 
-## Local setup
+Це проста онлайн-крамниця ювелірних прикрас: каблучки, сережки, браслети, підвіски.
 
-Requires the latest patch release of Python 3.12, 3.13, or 3.14. Run these commands from the project directory containing
-`manage.py`.
+Ідея така: людина заходить на сайт, дивиться каталог, обирає прикраси за категорією або ціною і оформлює замовлення, вказавши своє ім'я, телефон і адресу.
 
-1. Create and activate a virtual environment:
+### Що є на сайті
 
-   ```bash
-   python -m venv .venv
-   
-   # for linux/macos
-   source .venv/bin/activate
-   # for Windows:
-   .venv\Scripts\activate
-   ```
+- **Категорії.** Каблучки, сережки, браслети тощо.
+- **Прикраси.** У кожної є назва, опис, ціна, метал (золото, срібло), кількість на складі та категорія.
+- **Замовлення.** Покупець обирає прикраси й кількість, залишає контакти. Замовлення має статус: нове, відправлене, доставлене або скасоване.
+- **Адміністратор** додає, змінює й видаляє прикраси та змінює статуси замовлень.
 
-2. Install dependencies:
+> TODO: реєстрація, вхід(пошта або\і номер(?)), кошик і відгуки.
+>
+> TODO: авторизація і права доступу.
 
-   ```bash
-   python -m pip install -r requirements-dev.txt
-   ```
+---
 
+## REST API
 
-3. Apply migrations to create the local SQLite database:
+Загальні правила:
 
-   ```bash
-   python manage.py migrate
-   ```
+- Дані передаються у форматі JSON.
+- Префікс усіх адрес: `/api`.
+- Якщо сталась помилка, у відповіді буде поле `error` з описом.
 
-4. Start the development server:
+### Категорії
 
-   ```bash
-   python manage.py runserver
-   ```
+#### Список категорій
 
-## Endpoints
+- **Навіщо:** показати меню категорій.
+- **Метод:** `GET /api/categories`
+- **Request body:** немає
+- **Response:** `200 OK`. Список категорій, у кожної є `id` і `name`.
 
-With the server running at `http://127.0.0.1:8000`:
+#### Створити категорію
 
-| URL | Behavior |
-| --- | --- |
-| http://127.0.0.1:8000/ | No application homepage; may show Django's development welcome page while `DEBUG = True` |
-| http://127.0.0.1:8000/admin/ | Django admin, available after applying migrations |
+- **Навіщо:** адміністратор додає нову категорію.
+- **Метод:** `POST /api/categories`
+- **Request body:** `name` (назва).
+- **Response:** `201 Created`. Створена категорія з `id` і `name`.
+- Якщо немає назви: `400 Bad Request`.
 
-With `DEBUG = False`, unmatched URLs such as `/` return HTTP 404.
+---
 
-To create an account for admin login, run this after applying migrations:
+### Прикраси
 
-```bash
-python manage.py createsuperuser
-```
+#### Список прикрас
 
-## Add your first application
+- **Навіщо:** каталог із фільтрами.
+- **Метод:** `GET /api/products`
+- **Параметри (необов'язкові):**
+  - `category` — id категорії
+  - `max_price` — максимальна ціна
+- **Приклад:** `GET /api/products?category=1&max_price=20000`
+- **Response:** `200 OK`. Список прикрас, у кожної є `id`, `name`, `price`, `category_id`.
 
-1. Create an app from the directory containing `manage.py` (replace `myapp`
-   with your application name):
+#### Одна прикраса
 
-   ```bash
-   python manage.py startapp myapp
-   ```
+- **Навіщо:** сторінка товару.
+- **Метод:** `GET /api/products/{id}`
+- **Request body:** немає
+- **Response:** `200 OK`. Прикраса з полями `id`, `name`, `description`, `price`, `material`, `stock`, `category_id`.
+- Якщо немає: `404 Not Found`.
 
-2. Add its generated configuration class, `myapp.apps.MyappConfig`, to
-   `INSTALLED_APPS` in `config/settings.py`.
-3. Define your views and create `myapp/urls.py` with their URL patterns.
-4. Register that URLconf in `config/urls.py` using `path()` and `include()`,
-   choosing a URL prefix for the app and retaining the admin route.
+#### Додати прикрасу
 
-See the official Django 6.1 tutorial for
-[views and URL registration](https://docs.djangoproject.com/en/6.1/intro/tutorial01/)
-and [app registration and models](https://docs.djangoproject.com/en/6.1/intro/tutorial02/).
+- **Навіщо:** адміністратор додає товар.
+- **Метод:** `POST /api/products`
+- **Request body:** `name`, `description`, `price`, `material`, `stock`, `category_id`.
+- **Response:** `201 Created`. Створена прикраса з `id`.
+- Якщо дані неправильні: `400 Bad Request`.
 
-## Git attributes
+#### Змінити прикрасу
 
-Git detects text files automatically and normalizes them to LF. Checkouts use
-LF on Linux and Windows, while `.bat` and `.cmd` files use CRLF. Binary files
-are auto-detected and left unchanged, helping avoid newline-only diffs.
+- **Навіщо:** змінити ціну, опис або кількість на складі.
+- **Метод:** `PATCH /api/products/{id}`
+- **Request body:** тільки ті поля, які треба змінити (наприклад, `price` і `stock`).
+- **Response:** `200 OK`. Оновлена прикраса.
+- Якщо немає: `404 Not Found`.
 
+#### Видалити прикрасу
 
-## Code style and submission verification
+- **Навіщо:** прибрати товар з каталогу.
+- **Метод:** `DELETE /api/products/{id}`
+- **Request body:** немає
+- **Response:** `204 No Content`.
+- Якщо немає: `404 Not Found`.
 
-All submissions are required to adhere to PEP-8, Django best practices, and standard HTML/CSS/JS formatting. A deterministic cross-platform utility is provided to help you check and format your code.
+---
 
-### 1. Verification (Check Mode)
-Before submitting, verify that all files adhere to the required standards:
+### Замовлення
 
-```bash
-python check_submission.py
-```
+#### Створити замовлення
 
-If all checks pass, you are ready to submit! If any checks fail, review the error output or run the auto-formatter below.
+- **Навіщо:** покупець оформлює замовлення.
+- **Метод:** `POST /api/orders`
+- **Request body:**
+  - `customer_name` — ім'я покупця
+  - `phone` — телефон
+  - `address` — адреса доставки
+  - `items` — список прикрас, у кожної є `product_id` і `quantity`
+- **Response:** `201 Created`. Створене замовлення з `id`, `status` (спочатку `new`), `total` (загальна сума) і `customer_name`.
+- Якщо список `items` порожній або товару немає на складі: `400 Bad Request`.
 
-### 2. Auto-Formatting
-To automatically format Python files, fix safe PEP-8 rules, format Django HTML templates, and format CSS/JS static files:
+> TBD: оплата. (спробувати тестовий api liqpay або іншого сервіса з оплатою, або взагалі поки робити без оплати (?))
 
-```bash
-python check_submission.py --format
-```
+#### Список замовлень
 
-### 3. PyCharm Integration
-If you use PyCharm:
-- **One-Click Run:** In the top-right toolbar run configurations dropdown, select **"Verify Submission"** or **"Format Project"** and click the green **Play** button.
+- **Навіщо:** адміністратор бачить усі замовлення.
+- **Метод:** `GET /api/orders`
+- **Request body:** немає
+- **Response:** `200 OK`. Список замовлень, у кожного є `id`, `status`, `total`, `customer_name`.
 
-## Development only
+#### Одне замовлення
 
-The included settings use `DEBUG = True`, a development secret key, and a local
-SQLite database. The default mailer uses the console backend: email is printed
-to the process's console instead of being delivered.
+- **Навіщо:** подивитись деталі замовлення.
+- **Метод:** `GET /api/orders/{id}`
+- **Request body:** немає
+- **Response:** `200 OK`. Замовлення з полями `id`, `status`, `total`, `customer_name`, `phone`, `address` і `items`. У кожної прикраси в `items` є `product_id`, `name`, `price`, `quantity`.
+- Якщо немає: `404 Not Found`.
 
-This configuration and Django's development server are not suitable for
-production deployment.
+#### Змінити статус замовлення
+
+- **Навіщо:** адміністратор відмічає, що замовлення відправлене чи доставлене, або скасовує його.
+- **Метод:** `PATCH /api/orders/{id}`
+- **Request body:** `status`. Можливі значення: `new`, `shipped`, `delivered`, `cancelled`.
+- **Response:** `200 OK`. Оновлене замовлення.
+- Якщо статус неправильний: `400 Bad Request`. Якщо замовлення немає: `404 Not Found`.
