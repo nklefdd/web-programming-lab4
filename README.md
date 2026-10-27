@@ -36,7 +36,7 @@ python manage.py runserver
 ```
 
 - Бекенд: `http://127.0.0.1:8000`, API: `http://127.0.0.1:8000/api`
-- Фронтенд (окремий репозиторій: _посилання_): `http://127.0.0.1:5500`
+- Фронтенд ([lab4-frontend](https://github.com/nklefdd/lab4-frontend)): `http://127.0.0.1:5500`
 
 ### CORS
 
