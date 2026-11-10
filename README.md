@@ -13,13 +13,13 @@
 - **Замовлення.** Покупець обирає прикраси й кількість, залишає контакти. Замовлення має статус: нове, відправлене, доставлене або скасоване.
 - **Адміністратор** додає, змінює й видаляє прикраси та змінює статуси замовлень.
 
-> TODO: реєстрація, вхід(пошта або\і номер(?)), кошик і відгуки.
+> TODO: кошик і відгуки.
 >
-> TODO: авторизація і права доступу.
+> Реалізовано: реєстрація, JWT-авторизація та права доступу.
 
 ### Що вже реалізовано
 
-Категорії та прикраси (повний CRUD). Замовлення, авторизація, кошик і фільтри в списку прикрас поки лише описані нижче як план.
+Категорії та прикраси (повний CRUD), реєстрація, вхід через JWT і профіль користувача. Замовлення, кошик і фільтри в списку прикрас поки лише описані нижче як план.
 
 ---
 
@@ -32,6 +32,7 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 python manage.py migrate
+python manage.py createsuperuser
 python manage.py runserver
 ```
 
@@ -44,7 +45,7 @@ python manage.py runserver
 
 ### Postman
 
-Колекція: `postman/jewelry-api.postman_collection.json` (v2.1). Адреса сервера лежить у змінній `base_url`. Запити краще запускати по порядку, вони залежать від `category_id` і `product_id`. Є приклади успішних запитів і помилок 400, 404, 409.
+Колекція: `postman/jewelry-api.postman_collection.json` (v2.1). Адреса сервера лежить у змінній `base_url`. Перед запуском задайте `admin_username` і `admin_password`. Запускайте запити по порядку: вони зберігають токени, `category_id` і `product_id`. Є приклади успішних запитів і помилок 400, 401, 403, 404, 409.
 
 ---
 
@@ -60,7 +61,7 @@ python manage.py runserver
 
 - Дані передаються у форматі JSON.
 - Префікс усіх адрес: `/api`. Адреси без слеша в кінці.
-- Усі помилки мають однаковий формат:
+- Помилки APIView мають однаковий формат:
 
 ```json
 {
@@ -210,3 +211,111 @@ python manage.py runserver
 - **Request body:** `status`. Можливі значення: `new`, `shipped`, `delivered`, `cancelled`.
 - **Response:** `200 OK`. Оновлене замовлення.
 - Якщо статус неправильний: `400 Bad Request`. Якщо замовлення немає: `404 Not Found`.
+
+## Реєстрація, JWT та права доступу
+
+Новий код знаходиться в app `accounts`. Використовується стандартна модель `django.contrib.auth.models.User`, тому окрема міграція для `accounts` не потрібна: таблиці користувачів створює `python manage.py migrate` через стандартні міграції Django. Існуючі моделі та міграції каталогу збережені.
+
+Для адміністратора виконайте `python manage.py createsuperuser`. Користувач, створений через реєстрацію, завжди звичайний, без `is_staff`. Адміністратор для API — користувач з `is_staff=True`.
+
+### Доступ
+
+| Ендпоінти | Метод | Хто має доступ |
+| --- | --- | --- |
+| `/api/categories`, `/api/products` | GET | Усі |
+| `/api/categories/{id}`, `/api/products/{id}` | GET | Усі |
+| `/api/categories`, `/api/products` | POST | Адміністратор |
+| `/api/categories/{id}`, `/api/products/{id}` | PUT, DELETE | Адміністратор |
+| `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh` | POST | Без access-токена |
+| `/api/auth/me` | GET | Авторизований користувач |
+
+Для закритих запитів передайте хедер `Authorization: Bearer <access>`. Для JSON-запитів — `Content-Type: application/json`. URL без слеша в кінці. Query-параметрів у нових ендпоінтів немає.
+
+Запит без токена або з недійсним/простроченим токеном повертає **401**. Звичайний авторизований користувач при зміні каталогу отримує **403**, бо його роль не дозволяє дію. Попередні статуси CRUD (200, 201, 204, 400, 404, 409) залишаються чинними після перевірки доступу.
+
+### POST /api/auth/register
+
+Обов’язкові поля: `username`, `email`, `password`, `password_confirmation`. `first_name` і `last_name` необов’язкові, за замовчуванням порожні.
+
+| Поле | Обмеження |
+| --- | --- |
+| username | 1–150 символів; унікальне; літери, цифри та @/./+/-/_ |
+| first_name, last_name | До 150 символів |
+| email | До 254 символів; коректна email-адреса; не використовується для входу |
+| password, password_confirmation | 8–128 символів; значення повинні збігатися |
+
+Додатково Django відхиляє поширені та лише цифрові паролі. Пароль зберігається через `create_user()` у вигляді хешу, у відповідь не повертається. Email не є унікальним; унікальний ідентифікатор входу — username.
+
+Request:
+```json
+{"username":"olena","first_name":"Олена","last_name":"","email":"olena@example.com","password":"River!Amber872","password_confirmation":"River!Amber872"}
+```
+
+Response **201**:
+```json
+{"id":1,"username":"olena","first_name":"Олена","last_name":"","email":"olena@example.com","is_staff":false}
+```
+
+Response **400** для невалідних полів, зайнятого username або різних паролів:
+```json
+{"error":{"status":400,"message":"Некоректні дані. Перевірте поля запиту.","details":{"password_confirmation":["Паролі не збігаються."]}}}
+```
+
+У `details` ключі відповідають полям форми, значення — списки помилок. Спочатку перевіряються окремі поля, а після цього — збіг паролів.
+
+### POST /api/auth/login
+
+Request:
+```json
+{"username":"olena","password":"River!Amber872"}
+```
+
+Response **200**:
+```json
+{"refresh":"<refresh JWT>","access":"<access JWT>"}
+```
+
+Статуси: **400** — не заповнені поля, **401** — неправильні дані входу або неактивний акаунт. Access діє 5 хвилин, refresh — 1 день.
+
+### POST /api/auth/refresh
+
+Request:
+```json
+{"refresh":"<refresh JWT>"}
+```
+
+Response **200**:
+```json
+{"access":"<новий access JWT>"}
+```
+
+Статуси: **400** — відсутнє поле refresh, **401** — токен недійсний або прострочений. Refresh-токен не змінюється та не подовжується. Фронтенд після 401 на захищеному запиті отримує новий access і повторює початковий запит один раз. Якщо refresh теж завершився, потрібно ввійти знову.
+
+### GET /api/auth/me
+
+Header: `Authorization: Bearer <access>`. Request body відсутнє.
+
+Response **200**:
+```json
+{"id":1,"username":"olena","first_name":"Олена","last_name":"","email":"olena@example.com","is_staff":false}
+```
+
+Response **401**:
+```json
+{"error":{"status":401,"message":"Потрібно увійти в акаунт. Перевірте логін і пароль або оновіть токен."}}
+```
+
+Приклад **403** при спробі звичайного користувача змінити каталог:
+```json
+{"error":{"status":403,"message":"Змінювати каталог може лише адміністратор."}}
+```
+
+### Logout
+
+Окремого серверного ендпоінта немає: кнопка виходу видаляє access і refresh із `sessionStorage` та відкриває каталог. Це клієнтський logout за умовою роботи. Уже виданий токен не відкликається на сервері й залишається чинним до завершення свого строку.
+
+### Перевірка
+
+Postman: імпортуйте `postman/jewelry-api.postman_collection.json`, задайте `admin_username` та `admin_password` користувача, створеного командою `createsuperuser`. `base_url` за замовчуванням дорівнює `http://127.0.0.1:8000/api`. Запустіть усю колекцію по порядку. Вона створить тестового користувача з унікальним username, перевірить реєстрацію, логін, refresh, профіль, 400/401/403, потім увійде як адміністратор і виконає попередні CRUD-сценарії, включно з 409. Каталог тестові запити прибирають; тестовий користувач залишається у БД. Змінні токенів заповнюються автоматично.
+
+Проєкт призначений для локального запуску. Перед розгортанням потрібно замінити навчальний SECRET_KEY і вимкнути DEBUG. Реалізація JWT використовує [SimpleJWT](https://django-rest-framework-simplejwt.readthedocs.io/en/stable/getting_started.html).
