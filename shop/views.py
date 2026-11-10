@@ -3,6 +3,8 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.permissions import ReadOnlyOrAdmin
+
 from .exceptions import ConflictError
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
@@ -16,6 +18,8 @@ def get_or_404(model, pk, label):
 
 
 class CategoryListView(APIView):
+    permission_classes = [ReadOnlyOrAdmin]
+
     def get(self, request):
         categories = Category.objects.order_by("id")
         return Response(CategorySerializer(categories, many=True).data)
@@ -28,6 +32,8 @@ class CategoryListView(APIView):
 
 
 class CategoryDetailView(APIView):
+    permission_classes = [ReadOnlyOrAdmin]
+
     def get(self, request, pk):
         category = get_or_404(Category, pk, "Категорію")
         return Response(CategorySerializer(category).data)
@@ -53,6 +59,8 @@ class CategoryDetailView(APIView):
 
 
 class ProductListView(APIView):
+    permission_classes = [ReadOnlyOrAdmin]
+
     def get(self, request):
         products = Product.objects.select_related("category").order_by("id")
         return Response(ProductSerializer(products, many=True).data)
@@ -65,6 +73,8 @@ class ProductListView(APIView):
 
 
 class ProductDetailView(APIView):
+    permission_classes = [ReadOnlyOrAdmin]
+
     def get(self, request, pk):
         product = get_or_404(Product, pk, "Прикрасу")
         return Response(ProductSerializer(product).data)
