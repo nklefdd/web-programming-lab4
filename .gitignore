@@ -10,3 +10,10 @@ db.sqlite3-journal
 .vscode/
 .idea/
 .DS_Store
+.env.*
+!.env.example
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+coverage.xml
