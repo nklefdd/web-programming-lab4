@@ -20,3 +20,8 @@ class ProductSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError("Ціна має бути більшою за 0.")
         return value
+
+class ErrorSerializer(serializers.Serializer):
+    error = serializers.DictField(
+        help_text="Поля status, message та details для помилок валідації."
+    )
