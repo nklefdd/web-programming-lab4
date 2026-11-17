@@ -2,11 +2,11 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schem
 
 from .serializers import ErrorSerializer, ProductSerializer
 
-TAGS = ["Products"]
+TAGS = ["Прикраси"]
 JWT = [{"jwtAuth": []}]
 
 PRODUCT_ID = OpenApiParameter(
-    name="pk",
+    name="id",
     type=int,
     location=OpenApiParameter.PATH,
     description="Ідентифікатор прикраси.",
@@ -82,11 +82,22 @@ VALIDATION_EXAMPLE = OpenApiExample(
 )
 
 product_list = extend_schema(
+    auth=[],
     tags=TAGS,
     summary="Список прикрас",
     description="Повертає всі прикраси, відсортовані за id. Доступно без авторизації.",
-    responses={200: ProductSerializer(many=True)},
-    examples=[OpenApiExample("Список прикрас", value=[PRODUCT_EXAMPLE], response_only=True, status_codes=["200"])],
+    responses={
+        200: ProductSerializer(many=True),
+        401: ErrorSerializer,
+    },
+    examples=[
+        OpenApiExample(
+            "Список прикрас",
+            value=PRODUCT_EXAMPLE,
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
 )
 
 product_create = extend_schema(
@@ -111,13 +122,23 @@ product_create = extend_schema(
 )
 
 product_retrieve = extend_schema(
+    auth=[],
     tags=TAGS,
     summary="Одна прикраса",
     description="Повертає прикрасу за id. Доступно без авторизації.",
     parameters=[PRODUCT_ID],
-    responses={200: ProductSerializer, 404: ErrorSerializer},
+    responses={
+        200: ProductSerializer,
+        401: ErrorSerializer,
+        404: ErrorSerializer,
+    },
     examples=[
-        OpenApiExample("Прикраса", value=PRODUCT_EXAMPLE, response_only=True, status_codes=["200"]),
+        OpenApiExample(
+            "Прикраса",
+            value=PRODUCT_EXAMPLE,
+            response_only=True,
+            status_codes=["200"],
+        ),
         NOT_FOUND_EXAMPLE,
     ],
 )

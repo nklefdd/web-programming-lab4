@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
@@ -8,14 +10,22 @@ from accounts.permissions import ReadOnlyOrAdmin
 from .exceptions import ConflictError
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
+from .docs import (
+    product_list,
+    product_create,
+    product_retrieve,
+    product_update,
+    product_delete,
+)
 
+logger = logging.getLogger(__name__)
 
 def get_or_404(model, pk, label):
     try:
         return model.objects.get(pk=pk)
     except model.DoesNotExist:
+        logger.warning("Не знайдено %s id=%s", model.__name__, pk)
         raise NotFound(f"{label} з id={pk} не знайдено.")
-
 
 class CategoryListView(APIView):
     permission_classes = [ReadOnlyOrAdmin]
@@ -61,16 +71,45 @@ class CategoryDetailView(APIView):
 class ProductListView(APIView):
     permission_classes = [ReadOnlyOrAdmin]
 
+    @product_list
     def get(self, request):
+        logger.debug("Отримання списку прикрас")
         products = Product.objects.select_related("category").order_by("id")
         return Response(ProductSerializer(products, many=True).data)
 
+    @product_create
     def post(self, request):
         serializer = ProductSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        product = serializer.save()
+        logger.info("Створено прикрасу id=%s", product.pk)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+
+class ProductDetailView(APIView):
+    permission_classes = [ReadOnlyOrAdmin]
+
+    @product_retrieve
+    def get(self, request, pk):
+        logger.debug("Отримання прикраси id=%s", pk)
+        product = get_or_404(Product, pk, "Прикрасу")
+        return Response(ProductSerializer(product).data)
+
+    @product_update
+    def put(self, request, pk):
+        product = get_or_404(Product, pk, "Прикрасу")
+        serializer = ProductSerializer(product, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        logger.info("Оновлено прикрасу id=%s", pk)
+        return Response(serializer.data)
+
+    @product_delete
+    def delete(self, request, pk):
+        product = get_or_404(Product, pk, "Прикрасу")
+        product.delete()
+        logger.info("Видалено прикрасу id=%s", pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProductDetailView(APIView):
     permission_classes = [ReadOnlyOrAdmin]
