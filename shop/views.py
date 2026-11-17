@@ -110,22 +110,3 @@ class ProductDetailView(APIView):
         product.delete()
         logger.info("Видалено прикрасу id=%s", pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-class ProductDetailView(APIView):
-    permission_classes = [ReadOnlyOrAdmin]
-
-    def get(self, request, pk):
-        product = get_or_404(Product, pk, "Прикрасу")
-        return Response(ProductSerializer(product).data)
-
-    def put(self, request, pk):
-        product = get_or_404(Product, pk, "Прикрасу")
-        serializer = ProductSerializer(product, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def delete(self, request, pk):
-        product = get_or_404(Product, pk, "Прикрасу")
-        product.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
